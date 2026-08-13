@@ -126,13 +126,33 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
 }
 
+// routeResponse is the JSON-safe representation of a Route.
+// MiddlewareFunc is a function type and cannot be marshalled — omitted here.
+type routeResponse struct {
+	ID          string `json:"id"`
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Upstream    string `json:"upstream"`
+	StripPrefix string `json:"strip_prefix,omitempty"`
+}
+
 // handleRoutes returns a JSON list of registered routes.
 func handleRoutes(rt router.Router) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		routes := rt.Routes()
+		out := make([]routeResponse, len(routes))
+		for i, route := range routes {
+			out[i] = routeResponse{
+				ID:          route.ID,
+				Method:      route.Method,
+				Path:        route.Path,
+				Upstream:    route.Upstream,
+				StripPrefix: route.StripPrefix,
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(routes)
+		_ = json.NewEncoder(w).Encode(out)
 	}
 }
 
