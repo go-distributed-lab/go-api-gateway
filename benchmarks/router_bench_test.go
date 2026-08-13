@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"go-api-gateway/internal/proxy"
 	"go-api-gateway/internal/router"
 	"go-api-gateway/pkg/gateway"
 )
@@ -66,4 +67,10 @@ func BenchmarkRouter_ConcurrentMatch(b *testing.B) {
 			_, _ = rt.Match(req)
 		}
 	})
+}
+
+func BenchmarkProxy_New(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = proxy.New("http://localhost:9001", "")
+	}
 }
