@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go-api-gateway/internal/logger"
+	"go-api-gateway/internal/middleware"
 	"go-api-gateway/internal/proxy"
 	"go-api-gateway/internal/router"
 	"go-api-gateway/pkg/gateway"
@@ -83,19 +84,14 @@ func main() {
 // makeProxyHandler returns an http.HandlerFunc that routes and proxies requests.
 func makeProxyHandler(rt router.Router, log *logger.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
 		matched, err := rt.Match(r)
 		if err != nil {
-			log.Info("no route matched",
-				"method", r.Method,
-				"path", r.URL.Path,
-			)
 			http.Error(w, "no route matched", http.StatusNotFound)
 			return
 		}
 
 		route := matched.Route
+
 		p, err := proxy.New(route.Upstream, route.StripPrefix)
 		if err != nil {
 			log.Error("failed to create proxy",
@@ -107,15 +103,27 @@ func makeProxyHandler(rt router.Router, log *logger.Logger) http.HandlerFunc {
 			return
 		}
 
-		p.ServeHTTP(w, r)
+		// Build per-route middleware chain:
+		// Recovery (outermost) → Logger → Transform → proxy (innermost)
+		transformCfg := middleware.TransformConfig{
+			AddRequestHeaders: map[string]string{
+				"X-Gateway-Route": route.ID,
+			},
+		}
 
-		log.Info("request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"route", route.ID,
-			"upstream", route.Upstream,
-			"duration_ms", time.Since(start).Milliseconds(),
+		handler := middleware.Chain(
+			p,
+			middleware.Recovery(func(err any, stack []byte) {
+				log.Error("panic in proxy handler",
+					"route", route.ID,
+					"err", err,
+				)
+			}),
+			middleware.Logger(log),
+			middleware.Transform(transformCfg),
 		)
+
+		handler.ServeHTTP(w, r)
 	}
 }
 
