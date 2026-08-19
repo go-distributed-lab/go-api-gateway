@@ -10,7 +10,7 @@ import (
 	"go-api-gateway/internal/middleware"
 )
 
-var sink int
+
 
 func baseHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

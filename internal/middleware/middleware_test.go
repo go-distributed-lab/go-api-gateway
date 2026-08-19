@@ -25,19 +25,7 @@ func panicHandler() http.Handler {
 	})
 }
 
-func echoPathHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Seen-Path", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-	})
-}
 
-func echoHeaderHandler(header string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Seen-"+header, r.Header.Get(header))
-		w.WriteHeader(http.StatusOK)
-	})
-}
 
 // --- Chain ---
 
