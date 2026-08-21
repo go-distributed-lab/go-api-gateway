@@ -10,8 +10,6 @@ import (
 )
 
 // Proxy forwards HTTP requests to an upstream service.
-// It wraps httputil.ReverseProxy with gateway-specific behaviour:
-// path rewriting, error handling, and request ID injection.
 type Proxy struct {
 	target      *url.URL
 	stripPrefix string
@@ -35,7 +33,7 @@ func New(target, stripPrefix string) (*Proxy, error) {
 	}
 
 	rp := &httputil.ReverseProxy{
-		Director:       p.director,
+		Rewrite:        p.rewrite,
 		ErrorHandler:   p.errorHandler,
 		ModifyResponse: p.modifyResponse,
 		Transport: &http.Transport{
@@ -54,49 +52,31 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.delegate.ServeHTTP(w, r)
 }
 
-// director rewrites the outgoing request to point at the upstream.
-func (p *Proxy) director(req *http.Request) {
-	// Rewrite scheme and host to upstream target.
-	req.URL.Scheme = p.target.Scheme
-	req.URL.Host = p.target.Host
-
-	// Merge target path prefix with request path.
-	targetPath := p.target.Path
-	requestPath := req.URL.Path
+// rewrite rewrites the outgoing request to point at the upstream.
+// Replaces the deprecated Director field.
+func (p *Proxy) rewrite(req *httputil.ProxyRequest) {
+	req.SetURL(p.target)
 
 	// Strip the gateway-side prefix before forwarding.
 	if p.stripPrefix != "" {
-		requestPath = strings.TrimPrefix(requestPath, p.stripPrefix)
+		req.Out.URL.Path = strings.TrimPrefix(req.Out.URL.Path, p.stripPrefix)
+		if req.Out.URL.Path == "" {
+			req.Out.URL.Path = "/"
+		}
+		req.Out.URL.RawPath = ""
 	}
 
-	// Join target base path with remaining request path.
-	if targetPath == "" {
-		targetPath = "/"
-	}
-	req.URL.Path = singleJoiningSlash(targetPath, requestPath)
-
-	// Preserve raw query string.
-	if p.target.RawQuery == "" || req.URL.RawQuery == "" {
-		req.URL.RawQuery = p.target.RawQuery + req.URL.RawQuery
-	} else {
-		req.URL.RawQuery = p.target.RawQuery + "&" + req.URL.RawQuery
-	}
-
-	// Set X-Forwarded-For.
-	clientIP := req.RemoteAddr
-	if prior, ok := req.Header["X-Forwarded-For"]; ok {
-		clientIP = strings.Join(prior, ", ") + ", " + clientIP
-	}
-	req.Header.Set("X-Forwarded-For", clientIP)
-
+	// Propagate X-Forwarded-For automatically (SetURL handles this).
 	// Inject X-Request-ID if not already present.
-	if req.Header.Get("X-Request-ID") == "" {
-		req.Header.Set("X-Request-ID", newRequestID())
+	if req.In.Header.Get("X-Request-ID") == "" {
+		req.Out.Header.Set("X-Request-ID", newRequestID())
+	} else {
+		req.Out.Header.Set("X-Request-ID", req.In.Header.Get("X-Request-ID"))
 	}
 
-	// Remove hop-by-hop headers that must not be forwarded.
-	req.Header.Del("Te")
-	req.Header.Del("Trailers")
+	// Remove hop-by-hop headers.
+	req.Out.Header.Del("Te")
+	req.Out.Header.Del("Trailers")
 }
 
 // modifyResponse adds a gateway identification header to every response.
