@@ -131,11 +131,7 @@ func (c *Collector) Snapshot() map[string]Snapshot {
 
 	out := make(map[string]Snapshot, len(c.metrics))
 	for id, m := range c.metrics {
-		s := m.Snapshot()
-		if s.Requests > 0 {
-			s.AvgLatencyNs = s.TotalLatencyNs / s.Requests
-		}
-		out[id] = s
+		out[id] = m.Snapshot()
 	}
 	return out
 }
