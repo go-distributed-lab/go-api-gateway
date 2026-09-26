@@ -6,6 +6,9 @@ services:
     profiles: [full]
     ports:
       - "8080:8080"
+    environment:
+      - GATEWAY_ADDR=:8080
+      - UPSTREAM_ADDR=http://upstream:9001
     depends_on:
       - upstream
 
@@ -16,3 +19,6 @@ services:
     profiles: [full]
     ports:
       - "9001:9001"
+    environment:
+      - UPSTREAM_ADDR=:9001
+      - UPSTREAM_NAME=upstream-1
