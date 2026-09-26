@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -613,9 +612,4 @@ func TestIntegration_LongestPrefixRouting(t *testing.T) {
 	if hitRoute != "short" {
 		t.Fatalf("expected short prefix for /api/v2/, got %q", hitRoute)
 	}
-}
-
-// bodyString reads and returns the response body as a string.
-func bodyString(rec *httptest.ResponseRecorder) string {
-	return strings.TrimSpace(rec.Body.String())
 }
